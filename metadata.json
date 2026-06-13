@@ -1,7 +1,8 @@
 {
-  "name": "Current screen only on window switcher",
-  "description": "Limits the windows shown on the switcher to those of the current monitor",
-  "url": "https://github.com/mmai/Current_screen_only_on_window_switcher",
-  "uuid": "Current_screen_only_for_Alternate_Tab@bourcereau.fr",
-  "shell-version": ["40", "41", "42", "43", "44"]
+  "name": "Alt-Tab — Current Monitor",
+  "description": "Filters Alt-Tab to windows on the current monitor; adds always-visible per-icon titles with prefix disambiguation, plus per-icon close and move-to-next-monitor buttons.",
+  "url": "https://github.com/andersoncustodio/alttab-current-monitor",
+  "uuid": "alttab-current-monitor@andersoncustodio.com",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48", "49", "50"]
 }

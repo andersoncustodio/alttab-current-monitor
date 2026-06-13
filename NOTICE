@@ -1,0 +1,23 @@
+Alt-Tab — Current Monitor
+=========================
+
+The original extension was written by Henri Bourcereau and released under
+the MIT License:
+
+  Copyright (c) 2022 Henri Bourcereau
+  https://github.com/mmai/Current_screen_only_on_window_switcher
+
+This fork ports the extension to the GNOME 45+ ES-module extension API
+and adds:
+
+  - Per-icon titles, always visible (not only on the highlighted item)
+  - Common-prefix collapse to disambiguate similar titles
+  - Per-icon close buttons (X) that close a window/app without dismissing
+    the switcher
+  - Per-icon "move to next monitor" buttons
+  - Popup centring on the monitor that has the cursor
+  - Auto-dismiss when the pointer moves to another monitor
+  - Modular file layout (extension.js / patcher.js / disambiguator.js /
+    icon-decorations.js)
+
+The whole work is distributed under the MIT License; see LICENSE.
