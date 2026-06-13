@@ -6,7 +6,7 @@ It filters the windows shown in the Alt-Tab switcher to those of the
 current monitor, and adds a few quality-of-life controls on top of each
 icon.
 
-Compatible with GNOME 45 through 50.
+Compatible with GNOME 46 through 50.
 
 ## Features
 
