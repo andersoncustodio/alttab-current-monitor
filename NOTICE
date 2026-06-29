@@ -1,4 +1,4 @@
-Alt-Tab — Current Monitor
+Alt-Tab - Current Monitor
 =========================
 
 The original extension was written by Henri Bourcereau and released under
@@ -17,7 +17,7 @@ and adds:
   - Per-icon "move to next monitor" buttons
   - Popup centring on the monitor that has the cursor
   - Auto-dismiss when the pointer moves to another monitor
-  - Modular file layout (extension.js / patcher.js / disambiguator.js /
+  - Modular file layout (extension.js / disambiguator.js /
     icon-decorations.js)
 
 The whole work is distributed under the MIT License; see LICENSE.

@@ -194,9 +194,8 @@ function wrapInBinLayout(parent, child) {
 function closeOrSurfaceConfirmation(icon, {close, track, surface, onClosed}) {
     close();
     const tracker = track();
-    let destroyId = 0;
-    const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, CONFIRMATION_DELAY_MS, () => {
-        icon.disconnect(destroyId);
+    let timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, CONFIRMATION_DELAY_MS, () => {
+        timeoutId = 0;
         if (tracker.closed) {
             onClosed?.();
         } else {
@@ -208,33 +207,30 @@ function closeOrSurfaceConfirmation(icon, {close, track, surface, onClosed}) {
     });
     // The icon may be destroyed (popup dismissed) before the delay elapses; drop
     // the pending timeout so it never runs against an already-finalized actor.
-    destroyId = icon.connect('destroy', () => {
-        GLib.source_remove(timeoutId);
+    icon.connect('destroy', () => {
+        if (timeoutId > 0)
+            GLib.source_remove(timeoutId);
         tracker.cleanup?.();
     });
 }
 
 function trackWindowClosure(window) {
     const tracker = {closed: false};
-    const id = window.connect('unmanaged', () => {
+    window.connectObject('unmanaged', () => {
         tracker.closed = true;
-    });
-    tracker.cleanup = () => {
-        try { window.disconnect(id); } catch {}
-    };
+    }, tracker);
+    tracker.cleanup = () => window.disconnectObject(tracker);
     return tracker;
 }
 
 function trackAppClosure(app) {
     const tracker = {closed: app.get_n_windows() === 0};
-    const id = app.connect('windows-changed', () => {
+    app.connectObject('windows-changed', () => {
         if (app.get_n_windows() !== 0)
             return;
         tracker.closed = true;
-    });
-    tracker.cleanup = () => {
-        try { app.disconnect(id); } catch {}
-    };
+    }, tracker);
+    tracker.cleanup = () => app.disconnectObject(tracker);
     return tracker;
 }
 

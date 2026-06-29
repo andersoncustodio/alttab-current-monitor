@@ -1,4 +1,4 @@
-# Alt-Tab — Current Monitor
+# Alt-Tab - Current Monitor
 
 This is a GNOME Shell extension.
 
@@ -56,7 +56,6 @@ gnome-extensions enable alttab-current-monitor@andersoncustodio.com
 
 ```
 extension.js         entry point — orchestrates the patches
-patcher.js           generic prototype-method patch/restore helper
 disambiguator.js     pure title disambiguation algorithm
 icon-decorations.js  per-icon title + close / move buttons (St / Clutter)
 stylesheet.css       :hover / :active styling for the icon buttons

@@ -1,5 +1,5 @@
 {
-  "name": "Alt-Tab — Current Monitor",
+  "name": "Alt-Tab - Current Monitor",
   "description": "Filters Alt-Tab to windows on the current monitor; adds always-visible per-icon titles with prefix disambiguation, plus per-icon close and move-to-next-monitor buttons.",
   "url": "https://github.com/andersoncustodio/alttab-current-monitor",
   "uuid": "alttab-current-monitor@andersoncustodio.com",

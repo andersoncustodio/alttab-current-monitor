@@ -2,9 +2,8 @@ import GLib from 'gi://GLib';
 import Shell from 'gi://Shell';
 import * as AltTab from 'resource:///org/gnome/shell/ui/altTab.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import {Patcher} from './patcher.js';
 import {decorateAppIcon, decorateWindowIcon, disambiguateIcons} from './icon-decorations.js';
 
 const MONITOR_POLL_MS = 150;
@@ -12,9 +11,8 @@ const MONITOR_POLL_MS = 150;
 export default class CurrentScreenOnlyExtension extends Extension {
     enable() {
         this._activePopups = new Set();
-        this._popupWatchers = new Set();
-        this._popupDestroyIds = new Map();
-        this._patcher = new Patcher();
+        this._timeoutIds = [];
+        this._injectionManager = new InjectionManager();
         this._appSwitcherProto = null;
 
         this._patchWindowList();
@@ -24,17 +22,15 @@ export default class CurrentScreenOnlyExtension extends Extension {
     }
 
     disable() {
-        this._patcher.restoreAll();
+        this._injectionManager.clear();
 
-        // Disconnect destroy handlers from any popups still open at disable time;
-        // popups closed normally already removed themselves from the map.
-        this._popupDestroyIds.forEach((id, popup) => popup.disconnect(id));
-        this._popupDestroyIds.clear();
-        this._popupDestroyIds = null;
+        // Dismiss any switcher popup still open at disable time so its destroy
+        // handlers run synchronously now — cancelling the pending timeouts (here
+        // and in the icon decorations) and dropping references to this extension.
+        [...this._activePopups].forEach(popup => popup.destroy());
 
-        this._popupWatchers.forEach(stop => stop());
-        this._popupWatchers.clear();
-        this._popupWatchers = null;
+        this._timeoutIds.forEach(id => GLib.source_remove(id));
+        this._timeoutIds = null;
 
         // Clear popups before restoring so the primaryMonitor getter reports the
         // real primary again, not the monitor under the pointer.
@@ -42,12 +38,12 @@ export default class CurrentScreenOnlyExtension extends Extension {
         this._restorePrimaryMonitor();
         this._activePopups = null;
 
-        this._patcher = null;
+        this._injectionManager = null;
         this._appSwitcherProto = null;
     }
 
     _patchWindowList() {
-        this._patcher.patch(
+        this._injectionManager.overrideMethod(
             AltTab.WindowSwitcherPopup.prototype, '_getWindowList',
             original => function () {
                 return filterToCurrentMonitor(original.call(this));
@@ -83,7 +79,7 @@ export default class CurrentScreenOnlyExtension extends Extension {
     }
 
     _patchIconDecorations() {
-        this._patcher.patch(
+        this._injectionManager.overrideMethod(
             AltTab.AppIcon.prototype, '_init',
             original => function (app) {
                 original.call(this, app);
@@ -93,7 +89,7 @@ export default class CurrentScreenOnlyExtension extends Extension {
         if (!AltTab.WindowIcon)
             return;
 
-        this._patcher.patch(
+        this._injectionManager.overrideMethod(
             AltTab.WindowIcon.prototype, '_init',
             original => function (window, mode) {
                 original.call(this, window, mode);
@@ -104,18 +100,14 @@ export default class CurrentScreenOnlyExtension extends Extension {
     _patchPopupLifecycle() {
         const trackPopup = popup => {
             this._activePopups.add(popup);
-            const stopWatching = this._watchMonitorChange(popup);
-            this._popupWatchers.add(stopWatching);
-            const destroyId = popup.connect('destroy', () => {
+            const timeoutId = this._watchMonitorChange(popup);
+            popup.connect('destroy', () => {
                 this._activePopups?.delete(popup);
-                this._popupWatchers?.delete(stopWatching);
-                this._popupDestroyIds?.delete(popup);
-                stopWatching();
+                this._cancelTimeout(timeoutId);
             });
-            this._popupDestroyIds.set(popup, destroyId);
         };
 
-        this._patcher.patch(
+        this._injectionManager.overrideMethod(
             AltTab.WindowSwitcherPopup.prototype, '_init',
             original => function (...args) {
                 original.apply(this, args);
@@ -124,7 +116,7 @@ export default class CurrentScreenOnlyExtension extends Extension {
             });
 
         const ext = this;
-        this._patcher.patch(
+        this._injectionManager.overrideMethod(
             AltTab.AppSwitcherPopup.prototype, '_init',
             original => function () {
                 original.call(this);
@@ -135,21 +127,33 @@ export default class CurrentScreenOnlyExtension extends Extension {
     }
 
     _watchMonitorChange(popup) {
-        let lastMonitor = global.display.get_current_monitor();
-        let id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, MONITOR_POLL_MS, () => {
+        const lastMonitor = global.display.get_current_monitor();
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, MONITOR_POLL_MS, () => {
             const current = global.display.get_current_monitor();
             if (current === lastMonitor)
                 return GLib.SOURCE_CONTINUE;
-            id = 0;
+            // Drop this id before fadeAndDestroy: the popup's destroy handler calls
+            // _cancelTimeout(id), and the source also auto-removes via SOURCE_REMOVE,
+            // so the id must already be gone to avoid a double GLib.source_remove.
+            this._dropTimeout(id);
             popup.fadeAndDestroy?.();
             return GLib.SOURCE_REMOVE;
         });
-        return () => {
-            if (id > 0) {
-                GLib.source_remove(id);
-                id = 0;
-            }
-        };
+        this._timeoutIds.push(id);
+        return id;
+    }
+
+    _cancelTimeout(id) {
+        if (this._dropTimeout(id))
+            GLib.source_remove(id);
+    }
+
+    _dropTimeout(id) {
+        const index = this._timeoutIds?.indexOf(id) ?? -1;
+        if (index === -1)
+            return false;
+        this._timeoutIds.splice(index, 1);
+        return true;
     }
 
     _ensureAppSwitcherFilter(popup) {
@@ -159,7 +163,7 @@ export default class CurrentScreenOnlyExtension extends Extension {
         const proto = popup._switcherList.constructor.prototype;
         this._appSwitcherProto = proto;
 
-        this._patcher.patch(
+        this._injectionManager.overrideMethod(
             proto, '_addIcon',
             original => function (appIcon) {
                 appIcon.cachedWindows = filterToCurrentMonitor(appIcon.cachedWindows);
